@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QComboBox, QTextBrowser, QMenu, QLineEdit, QDockWidget,
     QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QSplitter,
     QGroupBox, QLabel, QStatusBar, QListWidget, QListWidgetItem,
-    QSizePolicy
+    QSizePolicy, QCheckBox
 )
 from PySide6.QtCore import QObject, Signal, QThread, Slot, Qt, QUrl
 import logging
@@ -216,7 +216,12 @@ class MainWindow(QMainWindow):
         lang_layout.addWidget(lang_label)
         lang_layout.addWidget(self.lang_combo)
         settings_layout.addLayout(lang_layout)
-        
+
+        # Option to re-transcribe videos that were already processed
+        self.retranscribe_checkbox = QCheckBox("Reprocess if already transcribed")
+        self.retranscribe_checkbox.setChecked(False)
+        settings_layout.addWidget(self.retranscribe_checkbox)
+
         # Add settings group
         file_layout.addWidget(settings_group)
         
@@ -467,10 +472,11 @@ class MainWindow(QMainWindow):
         self.transcript_display.setPlaceholderText(f"Transcribing with model {model_name}...")
 
         workers_started = False
+        force_reprocess = self.retranscribe_checkbox.isChecked()
         for path in list(self.video_tasks.keys()):
             if path in self.workers:
                 continue
-            if self.controller.indexer.is_video_indexed(path):
+            if self.controller.indexer.is_video_indexed(path) and not force_reprocess:
                 widget = self.video_tasks.get(path)
                 if widget:
                     widget.progress.setValue(100)
