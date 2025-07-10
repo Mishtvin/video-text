@@ -13,6 +13,7 @@ except ImportError:
     WHISPER_AVAILABLE = False
 
 from utils.logger import get_logger
+from utils.ffmpeg_downloader import FFmpegManager
 
 class WhisperTranscriber:
     """Transcribe audio using OpenAI Whisper."""
@@ -21,9 +22,22 @@ class WhisperTranscriber:
         self.logger = get_logger()
         self.model_name = model_name
         self.model = None
-        
+        self.ffmpeg_manager = FFmpegManager()
+
         if not WHISPER_AVAILABLE:
             raise ImportError("Whisper not available. Please install: pip install openai-whisper")
+
+        # Ensure FFmpeg is available and configure Whisper to use it
+        try:
+            if self.ffmpeg_manager.ensure_ffmpeg():
+                ffmpeg_path = self.ffmpeg_manager.get_ffmpeg_path()
+                # Set environment variable so Whisper uses the bundled FFmpeg
+                os.environ["FFMPEG_BINARY"] = ffmpeg_path
+                self.logger.info("Using bundled FFmpeg")
+            else:
+                self.logger.warning("FFmpeg could not be ensured; Whisper may fail if FFmpeg is missing")
+        except Exception as e:
+            self.logger.warning(f"Failed to configure FFmpeg for Whisper: {str(e)}")
     
     def load_model(self):
         """Load the Whisper model."""
