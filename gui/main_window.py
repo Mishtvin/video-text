@@ -8,8 +8,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QProgressBar,
     QComboBox, QTextBrowser, QMenu, QLineEdit, QDockWidget,
     QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QSplitter,
-    QGroupBox, QLabel, QStatusBar, QListWidget, QListWidgetItem,
-    QSizePolicy
+    QGroupBox, QLabel, QStatusBar, QListWidget, QListWidgetItem
 )
 from PySide6.QtCore import QObject, Signal, QThread, Slot, Qt, QUrl
 import logging
@@ -169,21 +168,23 @@ class MainWindow(QMainWindow):
         
         # File operations
         file_group = QGroupBox("File Operations")
-        file_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        file_group.setMaximumHeight(220)
         file_layout = QVBoxLayout(file_group)
         
+        button_row = QHBoxLayout()
+
         self.load_video_btn = QPushButton("Load Video")
         self.load_video_btn.setMinimumHeight(40)
-        file_layout.addWidget(self.load_video_btn)
+        button_row.addWidget(self.load_video_btn)
 
         self.add_videos_btn = QPushButton("Add Videos")
         self.add_videos_btn.setMinimumHeight(40)
-        file_layout.addWidget(self.add_videos_btn)
+        button_row.addWidget(self.add_videos_btn)
 
         self.add_processed_btn = QPushButton("Add Processed")
         self.add_processed_btn.setMinimumHeight(40)
-        file_layout.addWidget(self.add_processed_btn)
+        button_row.addWidget(self.add_processed_btn)
+
+        file_layout.addLayout(button_row)
         
         # Settings group for transcription
         settings_group = QGroupBox("Transcription Settings")
