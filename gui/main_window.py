@@ -177,6 +177,10 @@ class MainWindow(QMainWindow):
         self.add_videos_btn = QPushButton("Add Videos")
         self.add_videos_btn.setMinimumHeight(40)
         file_layout.addWidget(self.add_videos_btn)
+
+        self.add_processed_btn = QPushButton("Add Processed")
+        self.add_processed_btn.setMinimumHeight(40)
+        file_layout.addWidget(self.add_processed_btn)
         
         # Settings group for transcription
         settings_group = QGroupBox("Transcription Settings")
@@ -255,24 +259,26 @@ class MainWindow(QMainWindow):
         
         # Search results
         self.search_results_display = CustomTextBrowser()
-        self.search_results_display.setMaximumHeight(200)
         self.search_results_display.setPlaceholderText("Search results will appear here...")
         self.search_results_display.anchorClicked.connect(self.handle_transcript_click)
         search_layout.addWidget(self.search_results_display)
         
-        controls_layout.addWidget(search_group)
-        
         # Transcription display
         transcript_group = QGroupBox("Transcription")
         transcript_layout = QVBoxLayout(transcript_group)
-        
+
         self.transcript_display = CustomTextBrowser()
         self.transcript_display.setPlaceholderText("Transcription will appear here after processing...")
         self.transcript_display.setReadOnly(True)
         self.transcript_display.anchorClicked.connect(self.handle_transcript_click)
         transcript_layout.addWidget(self.transcript_display)
-        
-        controls_layout.addWidget(transcript_group)
+
+        search_transcript_splitter = QSplitter(Qt.Vertical)
+        search_transcript_splitter.addWidget(search_group)
+        search_transcript_splitter.addWidget(transcript_group)
+        search_transcript_splitter.setSizes([200, 400])
+
+        controls_layout.addWidget(search_transcript_splitter)
         
         splitter.addWidget(controls_widget)
         
@@ -319,6 +325,7 @@ class MainWindow(QMainWindow):
         """Connect UI signals to slots."""
         self.load_video_btn.clicked.connect(self.load_video)
         self.add_videos_btn.clicked.connect(self.add_videos)
+        self.add_processed_btn.clicked.connect(self.add_processed_videos)
         self.transcribe_btn.clicked.connect(self.start_transcription)
         self.search_btn.clicked.connect(self.search_transcript)
         self.search_input.returnPressed.connect(self.search_transcript)
@@ -377,6 +384,41 @@ class MainWindow(QMainWindow):
                 self.video_player.load_video(files[0])
                 self.transcribe_btn.setEnabled(True)
 
+    def add_processed_videos(self):
+        """Add already processed videos to the queue without reprocessing."""
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select Processed Videos",
+            "",
+            "Video Files (*.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm);;All Files (*)"
+        )
+
+        if files:
+            added = False
+            for path in files:
+                if path in self.video_tasks:
+                    continue
+                segments = self.controller.get_transcription_segments(path)
+                if not segments:
+                    continue
+                item = QListWidgetItem()
+                item.setData(Qt.UserRole, path)
+                widget = VideoItemWidget(path)
+                widget.progress.setValue(100)
+                item.setSizeHint(widget.sizeHint())
+                self.video_list.addItem(item)
+                self.video_list.setItemWidget(item, widget)
+                self.video_tasks[path] = widget
+                added = True
+
+            if added and not self.current_video_path:
+                self.current_video_path = files[0]
+                self.video_player.load_video(files[0])
+                self.search_input.setEnabled(True)
+                self.search_btn.setEnabled(True)
+                self.transcribe_btn.setEnabled(True)
+                self.display_transcription()
+
     def queue_item_clicked(self, item):
         """Load the selected video in the player."""
         path = item.data(Qt.UserRole)
@@ -417,18 +459,30 @@ class MainWindow(QMainWindow):
         self.transcript_display.clear()
         self.transcript_display.setPlaceholderText(f"Transcribing with model {model_name}...")
 
+        workers_started = False
         for path in list(self.video_tasks.keys()):
             if path in self.workers:
+                continue
+            if self.controller.indexer.is_video_indexed(path):
+                widget = self.video_tasks.get(path)
+                if widget:
+                    widget.progress.setValue(100)
                 continue
             worker = TranscriptionWorker(self.controller, path, model_name, language)
             worker.progress_updated.connect(self.update_task_progress)
             worker.transcription_completed.connect(self.task_finished)
             self.workers[path] = worker
             worker.start()
+            workers_started = True
 
-        self.progress_bar.setVisible(True)
-
-        self.logger.info("Transcription started for queued videos")
+        if workers_started:
+            self.progress_bar.setVisible(True)
+            self.logger.info("Transcription started for queued videos")
+        else:
+            self.progress_bar.setVisible(False)
+            self.transcribe_btn.setEnabled(True)
+            self.load_video_btn.setEnabled(True)
+            self.logger.info("All selected videos are already processed")
         
     def update_progress(self, percent, message):
         """Update progress bar during transcription."""
