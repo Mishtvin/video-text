@@ -170,17 +170,21 @@ class MainWindow(QMainWindow):
         file_group = QGroupBox("File Operations")
         file_layout = QVBoxLayout(file_group)
         
+        button_row = QHBoxLayout()
+
         self.load_video_btn = QPushButton("Load Video")
         self.load_video_btn.setMinimumHeight(40)
-        file_layout.addWidget(self.load_video_btn)
+        button_row.addWidget(self.load_video_btn)
 
         self.add_videos_btn = QPushButton("Add Videos")
         self.add_videos_btn.setMinimumHeight(40)
-        file_layout.addWidget(self.add_videos_btn)
+        button_row.addWidget(self.add_videos_btn)
 
         self.add_processed_btn = QPushButton("Add Processed")
         self.add_processed_btn.setMinimumHeight(40)
-        file_layout.addWidget(self.add_processed_btn)
+        button_row.addWidget(self.add_processed_btn)
+
+        file_layout.addLayout(button_row)
         
         # Settings group for transcription
         settings_group = QGroupBox("Transcription Settings")
