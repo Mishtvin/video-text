@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QProgressBar,
-    QComboBox, QTextBrowser, QMenu, QLineEdit, QDockWidget, 
-    QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QSplitter, QGroupBox, QLabel, QStatusBar
+    QComboBox, QTextBrowser, QMenu, QLineEdit, QDockWidget,
+    QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QSplitter,
+    QGroupBox, QLabel, QStatusBar, QListWidget, QListWidgetItem
 )
 from PySide6.QtCore import QObject, Signal, QThread, Slot, Qt, QUrl
 import logging
@@ -31,11 +32,25 @@ from gui.video_player import VideoPlayer
 from core.controller import TranscriptionController
 from utils.logger import get_logger
 
+class VideoItemWidget(QWidget):
+    """Widget representing a video task with progress."""
+
+    def __init__(self, video_path: str):
+        super().__init__()
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.label = QLabel(Path(video_path).name)
+        self.progress = QProgressBar()
+        self.progress.setValue(0)
+        self.progress.setMaximum(100)
+        layout.addWidget(self.label)
+        layout.addWidget(self.progress)
+
 class TranscriptionWorker(QThread):
     """Worker thread for video transcription to prevent GUI freezing."""
-    
-    progress_updated = Signal(int, str)  # progress percentage, status message
-    transcription_completed = Signal(bool, str)  # success, message
+
+    progress_updated = Signal(str, int, str)  # video path, progress, status
+    transcription_completed = Signal(str, bool, str)  # video path, success, msg
     
     def __init__(self, controller, video_path, model_name="base", language=None):
         super().__init__()
@@ -48,29 +63,29 @@ class TranscriptionWorker(QThread):
     def run(self):
         """Run the transcription process."""
         try:
-            self.progress_updated.emit(10, "Extracting audio...")
+            self.progress_updated.emit(self.video_path, 10, "Extracting audio...")
             audio_path = self.controller.extract_audio(self.video_path, self.audio_progress_callback)
-            
-            self.progress_updated.emit(30, "Starting transcription...")
+
+            self.progress_updated.emit(self.video_path, 30, "Starting transcription...")
             segments = self.controller.transcribe_audio(audio_path, self.model_name, self.language, self.progress_callback)
-            
-            self.progress_updated.emit(90, "Generating subtitles...")
+
+            self.progress_updated.emit(self.video_path, 90, "Generating subtitles...")
             subtitle_path = self.controller.generate_subtitles(segments, self.video_path)
-            
-            self.progress_updated.emit(95, "Indexing for search...")
+
+            self.progress_updated.emit(self.video_path, 95, "Indexing for search...")
             self.controller.index_segments(segments, self.video_path)
-            
-            self.progress_updated.emit(100, "Transcription completed!")
-            self.transcription_completed.emit(True, f"Transcription completed. Subtitles saved to: {subtitle_path}")
+
+            self.progress_updated.emit(self.video_path, 100, "Transcription completed!")
+            self.transcription_completed.emit(self.video_path, True, f"Transcription completed. Subtitles saved to: {subtitle_path}")
             
         except Exception as e:
             self.logger.error(f"Transcription failed: {str(e)}")
-            self.transcription_completed.emit(False, f"Transcription failed: {str(e)}")
+            self.transcription_completed.emit(self.video_path, False, f"Transcription failed: {str(e)}")
     
     def progress_callback(self, percentage, message=""):
         """Callback for transcription progress updates."""
         progress = 30 + int(percentage * 0.6)  # Map 0-100% to 30-90%
-        self.progress_updated.emit(progress, message or "Transcribing...")
+        self.progress_updated.emit(self.video_path, progress, message or "Transcribing...")
         
         # Добавляем обработку событий UI для обновления в реальном времени
         from PySide6.QtWidgets import QApplication
@@ -79,7 +94,7 @@ class TranscriptionWorker(QThread):
     def audio_progress_callback(self, percentage, message=""):
         """Callback for audio extraction progress updates."""
         progress = 10 + int(percentage * 0.2)  # Map 0-100% to 10-30%
-        self.progress_updated.emit(progress, message or "Extracting audio...")
+        self.progress_updated.emit(self.video_path, progress, message or "Extracting audio...")
         
         # Добавляем обработку событий UI для обновления в реальном времени
         from PySide6.QtWidgets import QApplication
@@ -99,6 +114,8 @@ class MainWindow(QMainWindow):
         self.current_video_path = None
         self.video_info = {}
         self.search_results = []
+        self.video_tasks = {}
+        self.workers = {}
         
         # Set up UI
         self.setup_ui()
@@ -156,6 +173,10 @@ class MainWindow(QMainWindow):
         self.load_video_btn = QPushButton("Load Video")
         self.load_video_btn.setMinimumHeight(40)
         file_layout.addWidget(self.load_video_btn)
+
+        self.add_videos_btn = QPushButton("Add Videos")
+        self.add_videos_btn.setMinimumHeight(40)
+        file_layout.addWidget(self.add_videos_btn)
         
         # Settings group for transcription
         settings_group = QGroupBox("Transcription Settings")
@@ -208,6 +229,13 @@ class MainWindow(QMainWindow):
         progress_layout.addWidget(self.progress_label)
         
         controls_layout.addWidget(progress_group)
+
+        # Queue of videos
+        queue_group = QGroupBox("Video Queue")
+        queue_layout = QVBoxLayout(queue_group)
+        self.video_list = QListWidget()
+        queue_layout.addWidget(self.video_list)
+        controls_layout.addWidget(queue_group)
         
         # Search section
         search_group = QGroupBox("Search Transcription")
@@ -290,9 +318,11 @@ class MainWindow(QMainWindow):
     def connect_signals(self):
         """Connect UI signals to slots."""
         self.load_video_btn.clicked.connect(self.load_video)
+        self.add_videos_btn.clicked.connect(self.add_videos)
         self.transcribe_btn.clicked.connect(self.start_transcription)
         self.search_btn.clicked.connect(self.search_transcript)
         self.search_input.returnPressed.connect(self.search_transcript)
+        self.video_list.itemClicked.connect(self.queue_item_clicked)
         
     def load_video(self):
         """Load a video file."""
@@ -321,12 +351,53 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 self.logger.error(f"Failed to load video: {str(e)}")
                 self.show_error("Error", f"Failed to load video:\n{str(e)}")
+
+    def add_videos(self):
+        """Add multiple videos to the processing queue."""
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select Video Files",
+            "",
+            "Video Files (*.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm);;All Files (*)"
+        )
+
+        if files:
+            for path in files:
+                if path in self.video_tasks:
+                    continue
+                item = QListWidgetItem()
+                item.setData(Qt.UserRole, path)
+                widget = VideoItemWidget(path)
+                item.setSizeHint(widget.sizeHint())
+                self.video_list.addItem(item)
+                self.video_list.setItemWidget(item, widget)
+                self.video_tasks[path] = widget
+            if not self.current_video_path:
+                self.current_video_path = files[0]
+                self.video_player.load_video(files[0])
+                self.transcribe_btn.setEnabled(True)
+
+    def queue_item_clicked(self, item):
+        """Load the selected video in the player."""
+        path = item.data(Qt.UserRole)
+        if not path:
+            return
+        try:
+            self.current_video_path = path
+            self.video_player.load_video(path)
+            segments = self.controller.get_transcription_segments(path)
+            if segments:
+                self.search_input.setEnabled(True)
+                self.search_btn.setEnabled(True)
+                self.display_transcription()
+        except Exception as e:
+            self.logger.error(f"Failed to load selected video: {e}")
     
     def start_transcription(self):
-        """Start the transcription process."""
-        if not self.current_video_path:
+        """Start transcription for all queued videos."""
+        if not self.video_tasks:
             return
-        
+
         # Get selected model and language
         model_name = self.model_combo.currentText()
         language = self.lang_combo.currentData()  # None means auto-detect
@@ -340,19 +411,24 @@ class MainWindow(QMainWindow):
         self.transcribe_btn.setEnabled(False)
         self.load_video_btn.setEnabled(False)
         self.search_btn.setEnabled(False)
-        
-        # Clear previous results
+
+        # Clear progress for current video
         self.progress_bar.setValue(0)
         self.transcript_display.clear()
         self.transcript_display.setPlaceholderText(f"Transcribing with model {model_name}...")
-        
-        # Start transcription worker
-        self.transcription_worker = TranscriptionWorker(self.controller, self.current_video_path, model_name, language)
-        self.transcription_worker.progress_updated.connect(self.update_progress)
-        self.transcription_worker.transcription_completed.connect(self.transcription_finished)
-        self.transcription_worker.start()
-        
-        self.logger.info("Transcription started in background")
+
+        for path in list(self.video_tasks.keys()):
+            if path in self.workers:
+                continue
+            worker = TranscriptionWorker(self.controller, path, model_name, language)
+            worker.progress_updated.connect(self.update_task_progress)
+            worker.transcription_completed.connect(self.task_finished)
+            self.workers[path] = worker
+            worker.start()
+
+        self.progress_bar.setVisible(True)
+
+        self.logger.info("Transcription started for queued videos")
         
     def update_progress(self, percent, message):
         """Update progress bar during transcription."""
@@ -375,9 +451,17 @@ class MainWindow(QMainWindow):
             status_message = f"Progress: {message} ({percent}%){time_info}"
             self.statusBar().showMessage(status_message)
             self.logger.info(f"Transcription progress: {message} ({percent}%){time_info}")
+
+    def update_task_progress(self, video_path, percent, message):
+        """Update progress for a specific video task."""
+        widget = self.video_tasks.get(video_path)
+        if widget:
+            widget.progress.setValue(percent)
+        if video_path == self.current_video_path:
+            self.update_progress(percent, message)
     
-    def transcription_finished(self, success, message):
-        """Handle transcription completion."""
+    def _single_transcription_finished(self, success, message):
+        """Handle completion for the currently loaded video."""
         # Re-enable controls
         self.transcribe_btn.setEnabled(True)
         self.load_video_btn.setEnabled(True)
@@ -399,6 +483,19 @@ class MainWindow(QMainWindow):
         segments = self.controller.get_transcription_segments(self.current_video_path)
         self.logger.info(f"Transcription completed successfully: {len(segments)} segments")
         self.statusBar().showMessage(f"Transcription of '{video_name}' completed: {len(segments)} segments. Ready for search.")
+
+    def task_finished(self, video_path, success, message):
+        """Handle completion of a video task."""
+        widget = self.video_tasks.get(video_path)
+        if widget and success:
+            widget.progress.setValue(100)
+        if video_path == self.current_video_path:
+            self._single_transcription_finished(success, message)
+        self.workers.pop(video_path, None)
+        if not self.workers:
+            self.transcribe_btn.setEnabled(True)
+            self.load_video_btn.setEnabled(True)
+            self.progress_bar.setVisible(False)
     
     def search_transcript(self):
         """Search for query in transcript."""
@@ -512,18 +609,20 @@ class MainWindow(QMainWindow):
     
     def closeEvent(self, event):
         """Handle application close event."""
-        if self.transcription_worker and self.transcription_worker.isRunning():
+        running_workers = [w for w in self.workers.values() if w.isRunning()]
+        if running_workers:
             reply = QMessageBox.question(
-                self, 
+                self,
                 "Transcription in Progress",
                 "Transcription is still running. Are you sure you want to quit?",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
-            
+
             if reply == QMessageBox.Yes:
-                self.transcription_worker.terminate()
-                self.transcription_worker.wait()
+                for w in running_workers:
+                    w.terminate()
+                    w.wait()
                 event.accept()
             else:
                 event.ignore()
