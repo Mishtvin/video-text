@@ -34,6 +34,11 @@ class WhisperTranscriber:
                 # Set environment variable so Whisper uses the bundled FFmpeg
                 os.environ["FFMPEG_BINARY"] = ffmpeg_path
                 self.logger.info("Using bundled FFmpeg")
+                try:
+                    # whisper.audio caches the path at import time, so update it explicitly
+                    whisper.audio.FFMPEG = ffmpeg_path
+                except Exception as e:
+                    self.logger.warning(f"Failed to update Whisper FFmpeg path: {e}")
             else:
                 self.logger.warning("FFmpeg could not be ensured; Whisper may fail if FFmpeg is missing")
         except Exception as e:
