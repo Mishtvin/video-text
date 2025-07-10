@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QProgressBar,
     QComboBox, QTextBrowser, QMenu, QLineEdit, QDockWidget,
     QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QSplitter,
-    QGroupBox, QLabel, QStatusBar, QListWidget, QListWidgetItem
+    QGroupBox, QLabel, QStatusBar, QListWidget, QListWidgetItem,
+    QSizePolicy
 )
 from PySide6.QtCore import QObject, Signal, QThread, Slot, Qt, QUrl
 import logging
@@ -168,6 +169,8 @@ class MainWindow(QMainWindow):
         
         # File operations
         file_group = QGroupBox("File Operations")
+        file_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        file_group.setMaximumHeight(220)
         file_layout = QVBoxLayout(file_group)
         
         self.load_video_btn = QPushButton("Load Video")
