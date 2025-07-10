@@ -19,7 +19,7 @@ class TranscriptionController:
     def __init__(self):
         self.logger = get_logger()
         self.extractor = AudioExtractor()
-        self.transcriber = WhisperTranscriber()
+        # Transcriber будет создаваться для каждого запроса с указанными параметрами
         self.subtitler = SubtitleGenerator()
         self.indexer = TranscriptionIndexer()
         
@@ -38,12 +38,25 @@ class TranscriptionController:
             self.logger.error(f"Audio extraction failed: {str(e)}")
             raise
     
-    def transcribe_audio(self, audio_path: str, progress_callback=None) -> List[Dict[str, Any]]:
-        """Transcribe audio to text with timestamps."""
+    def transcribe_audio(self, audio_path: str, model_name="base", language=None, progress_callback=None) -> List[Dict[str, Any]]:
+        """Transcribe audio to text with timestamps.
+        
+        Args:
+            audio_path: Path to audio file
+            model_name: Whisper model name (tiny, base, small, medium, large)
+            language: ISO language code (e.g., 'uk' for Ukrainian), or None for auto-detection
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            List of segments with start, end, and text
+        """
         self.logger.info(f"Transcribing audio: {audio_path}")
+        self.logger.info(f"Using model: {model_name}, language: {language if language else 'auto-detect'}")
         
         try:
-            segments = self.transcriber.transcribe(audio_path, progress_callback)
+            # Создаем транскрайбер с указанными параметрами
+            transcriber = WhisperTranscriber(model_name=model_name, language=language)
+            segments = transcriber.transcribe(audio_path, progress_callback)
             self.logger.info(f"Transcription completed: {len(segments)} segments")
             return segments
         except Exception as e:

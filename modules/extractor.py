@@ -3,6 +3,7 @@ Audio extraction module using FFmpeg.
 """
 
 import os
+import time
 import tempfile
 import ffmpeg
 from pathlib import Path
@@ -76,10 +77,32 @@ class AudioExtractor:
                 progress_callback(50, "Processing audio...")
             
             ffmpeg.run(stream, cmd=ffmpeg_path, capture_stdout=True, capture_stderr=True)
-            
+        
             if not os.path.exists(audio_path):
                 raise RuntimeError("Audio extraction failed - output file not created")
             
+            # Ensure file is fully written and accessible
+            retry_count = 0
+            max_retries = 3
+            while retry_count < max_retries:
+                try:
+                    file_size = os.path.getsize(audio_path)
+                    if file_size > 0:
+                        # Try to open the file to verify it's readable
+                        with open(audio_path, 'rb') as f:
+                            # Read a small chunk to ensure file is readable
+                            f.read(1024)
+                            break
+                except Exception as e:
+                    self.logger.warning(f"File not fully accessible yet: {str(e)}")
+                
+                # Wait before retrying
+                time.sleep(1)
+                retry_count += 1
+            
+            if retry_count == max_retries:
+                self.logger.warning("File access verification timed out, but continuing anyway")
+        
             self.logger.info(f"Audio extraction completed: {audio_path}")
             return audio_path
             

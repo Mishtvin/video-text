@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QProgressDialog
 from PySide6.QtCore import QDir, Qt
 from gui.main_window import MainWindow
 from utils.logger import setup_logger
+from utils.log_handler import setup_qt_logger
 from utils.ffmpeg_downloader import FFmpegManager
 
 def check_dependencies():
@@ -54,7 +55,7 @@ def check_dependencies():
 
 def main():
     """Main application entry point."""
-    # Setup logging
+    # Setup basic logging for startup (будет переконфигурирован в MainWindow)
     logger = setup_logger()
     logger.info("Starting Offline Video Transcriber & Searcher")
     
@@ -111,7 +112,7 @@ def main():
         main_window = MainWindow()
         main_window.show()
         
-        logger.info("Application started successfully")
+        # Логирование после этого момента будет идти через Qt консоль
         
         # Run the application
         return app.exec()

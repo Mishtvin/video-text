@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                               QSlider, QLabel, QSizePolicy)
 from PySide6.QtCore import Qt, QUrl, QTimer, Signal
-from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaMetaData
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtGui import QIcon
 
@@ -95,8 +95,12 @@ class VideoPlayer(QWidget):
         
     def setup_player(self):
         """Setup the media player."""
+        # Создание и настройка медиаплеера
         self.media_player = QMediaPlayer()
         self.audio_output = QAudioOutput()
+        
+        # Установка громкости по умолчанию
+        self.audio_output.setVolume(0.5)  # 50%
         
         # Connect player to video widget and audio output
         self.media_player.setVideoOutput(self.video_widget)
@@ -115,6 +119,10 @@ class VideoPlayer(QWidget):
         self.media_player.positionChanged.connect(self.update_position)
         self.media_player.durationChanged.connect(self.update_duration)
         self.media_player.playbackStateChanged.connect(self.update_playback_state)
+        
+        # Error handling and status
+        self.media_player.errorOccurred.connect(self.handle_error)
+        self.media_player.mediaStatusChanged.connect(self.handle_media_status)
         
         # UI control signals
         self.play_button.clicked.connect(self.play)
@@ -137,13 +145,20 @@ class VideoPlayer(QWidget):
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Video file not found: {file_path}")
             
+            # Преобразуем путь в абсолютный URL формат для Qt
             url = QUrl.fromLocalFile(str(Path(file_path).resolve()))
-            self.media_player.setSource(url)
+            self.media_player.stop()  # Остановить текущее воспроизведение перед загрузкой нового
             
             # Reset controls
             self.position_slider.setValue(0)
             self.position_label.setText("00:00:00")
             self.duration_label.setText("00:00:00")
+            
+            # Загрузка видео
+            self.media_player.setSource(url)
+            
+            # Важно установить свойства виджета после загрузки
+            self.video_widget.setAspectRatioMode(Qt.KeepAspectRatio)
             
             self.logger.info(f"Video loaded in player: {file_path}")
             
@@ -231,3 +246,39 @@ class VideoPlayer(QWidget):
         minutes = (seconds % 3600) // 60
         seconds = seconds % 60
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        
+    def handle_error(self, error, error_string):
+        """Handle media player errors."""
+        if error != QMediaPlayer.NoError:
+            self.logger.error(f"Media player error: {error_string} (code: {error})")
+            # Можно добавить диалоговое окно с ошибкой при необходимости
+            
+    def handle_media_status(self, status):
+        """Handle media status changes."""
+        status_messages = {
+            QMediaPlayer.NoMedia: "No media",
+            QMediaPlayer.LoadingMedia: "Loading media",
+            QMediaPlayer.LoadedMedia: "Media loaded",
+            QMediaPlayer.StalledMedia: "Media stalled",
+            QMediaPlayer.BufferingMedia: "Buffering media",
+            QMediaPlayer.BufferedMedia: "Media buffered",
+            QMediaPlayer.EndOfMedia: "End of media",
+            QMediaPlayer.InvalidMedia: "Invalid media"
+        }
+        
+        status_msg = status_messages.get(status, f"Unknown status: {status}")
+        self.logger.info(f"Media status changed: {status_msg}")
+        
+        if status == QMediaPlayer.LoadedMedia:
+            # Это хороший момент, чтобы обновить информацию о медиафайле
+            self.logger.info("Media loaded successfully, ready to play")
+            
+            # Получим метаданные видео, если доступны
+            metadata = self.media_player.metaData()
+            if metadata.keys():
+                resolution = metadata.value(QMediaMetaData.Resolution)
+                if resolution and resolution.isValid():
+                    self.logger.info(f"Video resolution: {resolution.width()}x{resolution.height()}")
+                    
+            # Автоматически запустить воспроизведение (опционально)
+            # self.media_player.play()
