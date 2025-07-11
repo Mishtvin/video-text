@@ -295,9 +295,9 @@ class MainWindow(QMainWindow):
         search_transcript_splitter.addWidget(transcript_group)
         search_transcript_splitter.setSizes([200, 400])
 
-        left_layout.addWidget(search_transcript_splitter)
+        left_layout.addWidget(queue_group)
 
-        right_layout.addWidget(queue_group)
+        right_layout.addWidget(search_transcript_splitter)
 
         controls_layout.addWidget(left_widget)
         controls_layout.addWidget(right_widget)
