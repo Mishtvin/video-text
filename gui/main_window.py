@@ -256,6 +256,7 @@ class MainWindow(QMainWindow):
         queue_group = QGroupBox("Video Queue")
         queue_layout = QVBoxLayout(queue_group)
         self.video_list = QListWidget()
+        self.video_list.setContextMenuPolicy(Qt.CustomContextMenu)
         queue_layout.addWidget(self.video_list)
 
         # Search section
@@ -352,6 +353,7 @@ class MainWindow(QMainWindow):
         self.search_btn.clicked.connect(self.search_transcript)
         self.search_input.returnPressed.connect(self.search_transcript)
         self.video_list.itemClicked.connect(self.queue_item_clicked)
+        self.video_list.customContextMenuRequested.connect(self.show_queue_context_menu)
         
     def load_video(self):
         """Load a video file."""
@@ -456,6 +458,50 @@ class MainWindow(QMainWindow):
                 self.display_transcription()
         except Exception as e:
             self.logger.error(f"Failed to load selected video: {e}")
+
+    def show_queue_context_menu(self, position):
+        """Show context menu for items in the video queue."""
+        item = self.video_list.itemAt(position)
+        if not item:
+            return
+
+        menu = QMenu(self)
+        regen_action = menu.addAction("Reprocess Video")
+
+        action = menu.exec(self.video_list.mapToGlobal(position))
+        if action == regen_action:
+            self.reprocess_video(item)
+
+    def reprocess_video(self, item):
+        """Reprocess a single video from the queue."""
+        path = item.data(Qt.UserRole)
+        if not path:
+            return
+
+        if path in self.workers and self.workers[path].isRunning():
+            self.logger.info(f"Video already being processed: {path}")
+            return
+
+        try:
+            self.controller.indexer.remove_video_index(path)
+        except Exception as e:
+            self.logger.warning(f"Failed to remove previous index: {e}")
+
+        widget = self.video_tasks.get(path)
+        if widget:
+            widget.progress.setValue(0)
+
+        model_name = self.model_combo.currentText()
+        language = self.lang_combo.currentData()
+
+        worker = TranscriptionWorker(self.controller, path, model_name, language)
+        worker.progress_updated.connect(self.update_task_progress)
+        worker.transcription_completed.connect(self.task_finished)
+        self.workers[path] = worker
+        worker.start()
+
+        self.progress_bar.setVisible(True)
+        self.logger.info(f"Reprocessing video: {path}")
     
     def start_transcription(self):
         """Start transcription for all queued videos."""
