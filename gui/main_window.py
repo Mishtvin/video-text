@@ -134,7 +134,7 @@ class MainWindow(QMainWindow):
         self.setup_logging()
         
         # Настраиваем статусную строку
-        self.statusBar().showMessage("Готов к работе. Выберите видео для начала.")
+        self.statusBar().showMessage("Ready. Select a video to start.")
         
         self.logger.info("Application started successfully")
         
@@ -217,7 +217,6 @@ class MainWindow(QMainWindow):
         self.lang_combo.addItem("Auto-detect", None)
         self.lang_combo.addItem("Ukrainian", "uk")
         self.lang_combo.addItem("English", "en")
-        self.lang_combo.addItem("Russian", "ru")
         self.lang_combo.setCurrentText("Ukrainian")  # Default to Ukrainian
         lang_layout.addWidget(lang_label)
         lang_layout.addWidget(self.lang_combo)
@@ -316,7 +315,7 @@ class MainWindow(QMainWindow):
     def setup_log_console(self):
         """Создает и настраивает консоль логов"""
         # Создаем докуемое окно для консоли
-        self.log_dock = QDockWidget("Консоль логов", self)
+        self.log_dock = QDockWidget("Log Console", self)
         self.log_dock.setAllowedAreas(Qt.BottomDockWidgetArea)
         
         # Создаем виджет для содержимого дока
@@ -328,7 +327,7 @@ class MainWindow(QMainWindow):
         log_layout.addWidget(self.log_console)
         
         # Добавляем кнопку очистки логов
-        clear_btn = QPushButton("Очистить логи")
+        clear_btn = QPushButton("Clear Logs")
         clear_btn.clicked.connect(self.log_console.clear_logs)
         log_layout.addWidget(clear_btn)
         
@@ -342,7 +341,7 @@ class MainWindow(QMainWindow):
         from utils.log_handler import setup_qt_logger
         # Перенастраиваем логгер, чтобы он использовал нашу Qt консоль
         self.logger = setup_qt_logger(self.log_console)
-        self.logger.info("Настроено логирование в Qt консоль")
+        self.logger.info("Qt logging configured")
         
     def connect_signals(self):
         """Connect UI signals to slots."""
@@ -514,7 +513,7 @@ class MainWindow(QMainWindow):
         language_display = self.lang_combo.currentText()
         
         # Показываем пользователю выбранные настройки
-        self.logger.info(f"Начинаем транскрибирование с моделью '{model_name}' и языком '{language_display}'")
+        self.logger.info(f"Starting transcription with model '{model_name}' and language '{language_display}'")
         self.statusBar().showMessage(f"Preparing transcription with model {model_name}...")
         
         # Disable controls during transcription
@@ -568,7 +567,7 @@ class MainWindow(QMainWindow):
             processed_formatted = self.format_time(processed_seconds)
             total_formatted = self.format_time(video_duration)
             
-            time_info = f" - Обработано {processed_formatted} из {total_formatted}"
+            time_info = f" - Processed {processed_formatted} of {total_formatted}"
         
         if message:
             status_message = f"Progress: {message} ({percent}%){time_info}"
