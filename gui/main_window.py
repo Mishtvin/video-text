@@ -165,7 +165,13 @@ class MainWindow(QMainWindow):
         
         # Right panel - Controls and search
         controls_widget = QWidget()
-        controls_layout = QVBoxLayout(controls_widget)
+        controls_layout = QHBoxLayout(controls_widget)
+
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
         
         # File operations
         file_group = QGroupBox("File Operations")
@@ -230,7 +236,7 @@ class MainWindow(QMainWindow):
         self.transcribe_btn.setEnabled(False)
         file_layout.addWidget(self.transcribe_btn)
         
-        controls_layout.addWidget(file_group)
+        left_layout.addWidget(file_group)
         
         # Progress section
         progress_group = QGroupBox("Progress")
@@ -244,14 +250,14 @@ class MainWindow(QMainWindow):
         self.progress_label.setVisible(False)
         progress_layout.addWidget(self.progress_label)
         
-        controls_layout.addWidget(progress_group)
+        left_layout.addWidget(progress_group)
 
         # Queue of videos
         queue_group = QGroupBox("Video Queue")
         queue_layout = QVBoxLayout(queue_group)
         self.video_list = QListWidget()
         queue_layout.addWidget(self.video_list)
-        controls_layout.addWidget(queue_group)
+        left_layout.addWidget(queue_group)
         
         # Search section
         search_group = QGroupBox("Search Transcription")
@@ -290,12 +296,15 @@ class MainWindow(QMainWindow):
         search_transcript_splitter.addWidget(transcript_group)
         search_transcript_splitter.setSizes([200, 400])
 
-        controls_layout.addWidget(search_transcript_splitter)
-        
+        right_layout.addWidget(search_transcript_splitter)
+
+        controls_layout.addWidget(left_widget)
+        controls_layout.addWidget(right_widget)
+
         splitter.addWidget(controls_widget)
         
         # Set splitter proportions (video player gets more space)
-        splitter.setSizes([700, 500])
+        splitter.setSizes([500, 700])
         
         # Status bar
         # Статусбар

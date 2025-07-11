@@ -30,7 +30,7 @@ class VideoPlayer(QWidget):
         
         # Video widget
         self.video_widget = QVideoWidget()
-        self.video_widget.setMinimumSize(400, 300)
+        self.video_widget.setMinimumSize(320, 240)
         self.video_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.video_widget)
         
