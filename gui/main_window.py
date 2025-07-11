@@ -257,8 +257,7 @@ class MainWindow(QMainWindow):
         queue_layout = QVBoxLayout(queue_group)
         self.video_list = QListWidget()
         queue_layout.addWidget(self.video_list)
-        left_layout.addWidget(queue_group)
-        
+
         # Search section
         search_group = QGroupBox("Search Transcription")
         search_layout = QVBoxLayout(search_group)
@@ -296,7 +295,9 @@ class MainWindow(QMainWindow):
         search_transcript_splitter.addWidget(transcript_group)
         search_transcript_splitter.setSizes([200, 400])
 
-        right_layout.addWidget(search_transcript_splitter)
+        left_layout.addWidget(search_transcript_splitter)
+
+        right_layout.addWidget(queue_group)
 
         controls_layout.addWidget(left_widget)
         controls_layout.addWidget(right_widget)
