@@ -679,6 +679,12 @@ class MainWindow(QMainWindow):
         h, m = divmod(m, 60)
         return f"{int(h):02d}:{int(m):02d}:{s:05.2f}"
 
+    def format_time_filename(self, seconds):
+        """Format seconds for use in file names (no colons)."""
+        m, s = divmod(seconds, 60)
+        h, m = divmod(m, 60)
+        return f"{int(h):02d}-{int(m):02d}-{s:05.2f}"
+
     def handle_transcript_click(self, url):
         """Handle clicks on transcript links."""
         url_str = url.toString()
@@ -719,7 +725,7 @@ class MainWindow(QMainWindow):
         if not self.current_video_path:
             return
 
-        default_name = f"segment_{self.format_time(start)}_{self.format_time(end)}.wav"
+        default_name = f"segment_{self.format_time_filename(start)}_{self.format_time_filename(end)}.wav"
         output_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Audio Segment",
@@ -730,8 +736,16 @@ class MainWindow(QMainWindow):
             return
 
         try:
+            padded_start = max(0.0, start - 1.0)
+            video_duration = None
+            if self.video_player.media_player.duration() > 0:
+                video_duration = self.video_player.media_player.duration() / 1000
+            padded_end = end + 1.0
+            if video_duration is not None:
+                padded_end = min(video_duration, padded_end)
+
             self.controller.extract_audio_segment(
-                self.current_video_path, start, end, output_path
+                self.current_video_path, padded_start, padded_end, output_path
             )
             QMessageBox.information(self, "Segment Saved", f"Audio saved to: {output_path}")
         except Exception as e:
