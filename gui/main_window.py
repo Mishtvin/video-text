@@ -654,7 +654,13 @@ class MainWindow(QMainWindow):
             text = result['text']
             
             # Create clickable search result
-            html_result = f'<p><b>{i}.</b> <a href="seek:{start_time}">[{start_formatted} - {end_formatted}]</a> {text}</p>'
+            end_time = result['end']
+            html_result = (
+                f'<p><b>{i}.</b> '
+                f'<a href="seek:{start_time}">[{start_formatted} - {end_formatted}]</a> '
+                f'<a href="download:{start_time}-{end_time}" style="margin-left:4px">&#128190;</a> '
+                f'{text}</p>'
+            )
             html_results.append(html_result)
         
         if html_results:
@@ -672,7 +678,7 @@ class MainWindow(QMainWindow):
         m, s = divmod(seconds, 60)
         h, m = divmod(m, 60)
         return f"{int(h):02d}:{int(m):02d}:{s:05.2f}"
-    
+
     def handle_transcript_click(self, url):
         """Handle clicks on transcript links."""
         url_str = url.toString()
@@ -685,16 +691,51 @@ class MainWindow(QMainWindow):
                 self.logger.info(f"Seeking to {time_seconds:.2f} seconds")
                 self.statusBar().showMessage(f"Seeking to {time_seconds:.2f} seconds")
                 self.video_player.seek_to_time(time_seconds)
-                
+
                 # Важно: возвращаем False, чтобы сигнализировать, что мы обработали событие
                 # и предотвратить дальнейшую обработку
                 return False
             except Exception as e:
                 self.logger.error(f"Failed to seek: {str(e)}")
                 self.statusBar().showMessage(f"Error seeking: {str(e)}")
-        
+
+        if url_str.startswith("download:"):
+            try:
+                params = url_str.split(":", 1)[1]
+                start_str, end_str = params.split("-")
+                start_time = float(start_str)
+                end_time = float(end_str)
+                self.download_audio_segment(start_time, end_time)
+                return False
+            except Exception as e:
+                self.logger.error(f"Failed to download segment: {str(e)}")
+                self.statusBar().showMessage(f"Error downloading segment: {str(e)}")
+
         # Предотвращаем действие по умолчанию
         return True
+
+    def download_audio_segment(self, start: float, end: float):
+        """Prompt user to save audio segment and extract it."""
+        if not self.current_video_path:
+            return
+
+        default_name = f"segment_{self.format_time(start)}_{self.format_time(end)}.wav"
+        output_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Audio Segment",
+            default_name,
+            "WAV Files (*.wav);;All Files (*)",
+        )
+        if not output_path:
+            return
+
+        try:
+            self.controller.extract_audio_segment(
+                self.current_video_path, start, end, output_path
+            )
+            QMessageBox.information(self, "Segment Saved", f"Audio saved to: {output_path}")
+        except Exception as e:
+            self.show_error("Save Error", f"Failed to save audio segment: {e}")
         
     def display_transcription(self):
         """Display transcription in the UI."""
@@ -711,11 +752,17 @@ class MainWindow(QMainWindow):
         for segment in segments:
             start_time = segment['start']
             start_formatted = self.format_time(start_time)
-            end_formatted = self.format_time(segment['end'])
+            end_time = segment['end']
+            end_formatted = self.format_time(end_time)
             text = segment['text']
-            
-            # Create clickable transcript
-            html_segment = f'<p><a href="seek:{start_time}">[{start_formatted} - {end_formatted}]</a> {text}</p>'
+
+            # Create clickable transcript with download button
+            html_segment = (
+                f'<p>'
+                f'<a href="seek:{start_time}">[{start_formatted} - {end_formatted}]</a> '
+                f'<a href="download:{start_time}-{end_time}" style="margin-left:4px">&#128190;</a> '
+                f'{text}</p>'
+            )
             html_segments.append(html_segment)
         
         self.transcript_display.setHtml(

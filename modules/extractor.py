@@ -178,5 +178,55 @@ class AudioExtractor:
                     self.logger.debug(f"Removed temp file: {temp_file}")
             except Exception as e:
                 self.logger.error(f"Failed to remove temp file {temp_file}: {str(e)}")
-        
+
         self.temp_files.clear()
+
+    def extract_segment(self, video_path: str, start: float, end: float, output_path: str) -> str:
+        """Extract an audio segment from a video file.
+
+        Args:
+            video_path: Path to the source video file.
+            start: Start time in seconds.
+            end: End time in seconds.
+            output_path: Path for the extracted audio file.
+
+        Returns:
+            Path to the extracted audio segment.
+        """
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+
+        if end <= start:
+            raise ValueError("End time must be greater than start time")
+
+        # Ensure FFmpeg is available
+        if not self.ffmpeg_manager.ensure_ffmpeg():
+            raise RuntimeError("FFmpeg is not available and could not be downloaded")
+
+        ffmpeg_path = self.ffmpeg_manager.get_ffmpeg_path()
+
+        try:
+            stream = ffmpeg.input(video_path, ss=start, to=end)
+            stream = ffmpeg.output(
+                stream.audio,
+                output_path,
+                acodec='pcm_s16le',
+                ac=1,
+                ar=16000,
+                y=None
+            )
+
+            ffmpeg.run(stream, cmd=ffmpeg_path, capture_stdout=True, capture_stderr=True)
+
+            if not os.path.exists(output_path):
+                raise RuntimeError("Segment extraction failed - output file not created")
+
+            return output_path
+
+        except ffmpeg.Error as e:
+            error_msg = f"FFmpeg error during segment extraction: {e.stderr.decode() if e.stderr else str(e)}"
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        except Exception as e:
+            self.logger.error(f"Segment extraction failed: {str(e)}")
+            raise

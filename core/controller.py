@@ -29,13 +29,26 @@ class TranscriptionController:
     def extract_audio(self, video_path: str, progress_callback=None) -> str:
         """Extract audio from video file."""
         self.logger.info(f"Extracting audio from: {video_path}")
-        
+
         try:
             audio_path = self.extractor.extract(video_path, progress_callback=progress_callback)
             self.logger.info(f"Audio extracted to: {audio_path}")
             return audio_path
         except Exception as e:
             self.logger.error(f"Audio extraction failed: {str(e)}")
+            raise
+
+    def extract_audio_segment(self, video_path: str, start: float, end: float, output_path: str) -> str:
+        """Extract a specific audio segment from a video."""
+        self.logger.info(
+            f"Extracting segment {start}-{end} from: {video_path} -> {output_path}"
+        )
+        try:
+            segment_path = self.extractor.extract_segment(video_path, start, end, output_path)
+            self.logger.info(f"Segment extracted: {segment_path}")
+            return segment_path
+        except Exception as e:
+            self.logger.error(f"Segment extraction failed: {str(e)}")
             raise
     
     def transcribe_audio(self, audio_path: str, model_name="base", language=None, progress_callback=None) -> List[Dict[str, Any]]:
